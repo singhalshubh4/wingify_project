@@ -1,0 +1,105 @@
+const express = require("express");
+const router = express.Router();
+const fetch = require('node-fetch');
+const Keyword = require('../models/keyword');
+let allNewsGlobal;
+
+
+module.exports.NewsPost= function(req,res,next){
+  Keyword.findOne({"keyword": req.body.keyword}).then((previousKeywordData)=>{
+    console.log(previousKeywordData);
+  if(Date.now() > previousKeywordData.endTime)
+    apiFilterSearch();
+    else
+    {
+      res.send("Search can be done after 10 min for same parameter");
+    }
+  }).catch(()=>{
+    apiFilterSearch();
+  });
+  
+  var apiFilterSearch = ()=>{
+    var dt = new Date();
+    dt.setMinutes( dt.getMinutes() + 10 );
+ req.body.endTime=dt;
+ Keyword.create(req.body).then(()=>{
+
+   fetch('https://newsapi.org/v2/top-headlines?country=us&category=business&apiKey=eadb6da4bb5847a8b5f5b8a633e53ab9').then(function(response){
+   return response.json();
+    }).then(function(allNews){
+   allNewsGlobal = allNews.articles;
+   //req.body.keyword
+   var filterNews = search(req.body.keyword);
+   //console.log(filterNews);
+   if(filterNews == '')
+   {
+     res.end("Keyword does not match with any news search again");
+     throw new Error("Keyword does not match with any news search again"); 
+   }  
+   else
+   {
+     filterNews = filterNews.map(temp => ({country: "us", category: "business", filterKeyword: req.body.keyword ,title: temp.title, description: temp.description.substring(0,100), url: temp.url  }));
+     res.send(filterNews);
+   }
+   }).catch( (next) => {
+       console.log(next);
+   }); 
+  });
+  } ;
+
+
+
+}
+  
+  
+  
+  
+  
+
+
+var search = (keyword)=>{
+
+let data = allNewsGlobal;
+for(var prop in data) {
+    if(data.hasOwnProperty(prop)) {
+      var index = "";
+      var item = data[prop];
+      
+    
+      for(var attr in item) {
+        if(item.hasOwnProperty(attr)) {
+        
+          index = index + item[attr] + "#";
+        }
+      }
+      
+      item.index = index.toLowerCase();
+    }
+  }
+  
+  //console.log("Prepared data:" ,data);
+  
+  // Filter process.
+  var key = keyword;
+  
+  var keyLowerCase = key.toLowerCase(); 
+  
+  // Iterate over the objects and compare the index prpoerty to match with the search string.
+  var filteredData = [];
+  for(var prop in data) {
+    if(data.hasOwnProperty(prop)) {
+      var item = data[prop];
+      
+      if(item.index.indexOf(keyLowerCase) >= 0 ){
+        filteredData.push(item);
+      }
+    }
+  }
+  
+  console.log("Filtered data:", filteredData);
+  return filteredData;
+
+};  
+ 
+
+
